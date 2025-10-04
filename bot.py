@@ -3,7 +3,7 @@ import subprocess
 from aiogram import Bot, Dispatcher, types, executor
 import os
 
-API_TOKEN = os.getenv("BOT_TOKEN")  # токен из Railway Variables
+API_TOKEN = os.getenv(8296435065:AAFCDjuerTbm8P6xRJd6-RD63H_Gzc29FQA)  # токен из Railway Variables
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
