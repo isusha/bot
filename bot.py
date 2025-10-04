@@ -1,13 +1,29 @@
+import logging
+import subprocess
+from aiogram import Bot, Dispatcher, types, executor
 import os
-from telegram.ext import Updater, CommandHandler
 
-TOKEN = os.getenv(8296435065:AAFCDjuerTbm8P6xRJd6-RD63H_Gzc29FQA)
+API_TOKEN = os.getenv("BOT_TOKEN")  # токен из Railway Variables
 
-def start(update, context):
-    update.message.reply_text("Привет! Я живой бот 🚀")
+logging.basicConfig(level=logging.INFO)
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
 
-updater = Updater(TOKEN)
-updater.dispatcher.add_handler(CommandHandler("start", start))
 
-updater.start_polling()
-updater.idle()
+@dp.message_handler(commands=["start"])
+async def start(message: types.Message):
+    await message.answer("Привет! Я бот прогноза воздуха.\nНапиши /forecast чтобы получить прогноз.")
+
+
+@dp.message_handler(commands=["forecast"])
+async def forecast(message: types.Message):
+    # Запускаем скрипт прогноза
+    subprocess.run(["python", "forecast.py"])
+
+    # Отправляем картинку прогноза
+    with open("forecast.png", "rb") as photo:
+        await message.reply_photo(photo, caption="Прогноз качества воздуха на 24 часа")
+
+
+if __name__ == "__main__":
+    executor.start_polling(dp, skip_updates=True)
