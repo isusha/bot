@@ -1,5 +1,4 @@
 import os
-import sys
 import requests
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,18 +9,21 @@ OPENWEATHER_KEY = os.getenv("OPENWEATHER_KEY")
 if not OPENWEATHER_KEY:
     raise RuntimeError("Не найдена переменная окружения OPENWEATHER_KEY")
 
+
 def get_city_coords(city):
-    url = f"http://api.openweathermap.org/geo/1.0/direct"
+    url = "http://api.openweathermap.org/geo/1.0/direct"
     params = {"q": city, "limit": 1, "appid": OPENWEATHER_KEY}
     resp = requests.get(url, params=params).json()
     if not resp:
         return None
     return resp[0]["lat"], resp[0]["lon"]
 
+
 def get_air_forecast(lat, lon):
-    url = f"http://api.openweathermap.org/data/2.5/air_pollution/forecast"
+    url = "http://api.openweathermap.org/data/2.5/air_pollution/forecast"
     params = {"lat": lat, "lon": lon, "appid": OPENWEATHER_KEY}
     return requests.get(url, params=params).json()
+
 
 def aqi_category(aqi):
     if aqi == 1:
@@ -36,17 +38,16 @@ def aqi_category(aqi):
         return "🟣 Очень вредно"
     return "❓ Неизвестно"
 
-def main(city):
+
+def get_forecast(city: str):
     coords = get_city_coords(city)
     if not coords:
-        print("Город не найден")
-        return
-    lat, lon = coords
+        return f"Город '{city}' не найден.", None
 
+    lat, lon = coords
     data = get_air_forecast(lat, lon)
     if "list" not in data:
-        print("Нет данных прогноза")
-        return
+        return f"Нет данных прогноза для {city}", None
 
     times, aqis, cats = [], [], []
     for item in data["list"][:24]:  # прогноз на 24 часа
@@ -56,12 +57,11 @@ def main(city):
         aqis.append(aqi)
         cats.append(aqi_category(aqi))
 
-    # Таблица
     df = pd.DataFrame({"Время": times, "AQI": aqis, "Категория": cats})
 
-    # Сохраняем график
+    # Строим график
     plt.figure(figsize=(10, 4))
-    plt.plot(df["Время"], df["AQI"], marker="o")
+    plt.plot(df["Время"], df["AQI"], marker="o", color="blue")
     plt.title(f"Прогноз AQI на 24 часа для {city}")
     plt.xlabel("Время")
     plt.ylabel("AQI (1=лучше, 5=хуже)")
@@ -70,16 +70,9 @@ def main(city):
     plt.tight_layout()
     plt.savefig("forecast.png")
 
-    # Сохраняем текстовый прогноз
+    # Формируем текст
     summary = f"Прогноз качества воздуха для {city}:\n\n"
     for _, row in df.iterrows():
         summary += f"{row['Время'].strftime('%H:%M')} — {row['Категория']}\n"
 
-    with open("forecast.txt", "w", encoding="utf-8") as f:
-        f.write(summary)
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Использование: python forecast.py <город>")
-    else:
-        main(sys.argv[1])
+    return summary, "forecast.png"
