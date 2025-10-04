@@ -6,7 +6,7 @@ import os
 API_TOKEN = os.getenv("BOT_TOKEN")  # токен из Railway Variables
 
 logging.basicConfig(level=logging.INFO)
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
 
