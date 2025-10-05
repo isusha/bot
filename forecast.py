@@ -1,32 +1,47 @@
 import os
 import requests
 
-API_KEY = os.getenv("OPENAQ_API_KEY")  # ключ для OpenAQ, храним в Railway Variables
+# токен OpenAQ
+OPENAQ_TOKEN = os.getenv("OPENAQ_TOKEN")
 
-def get_aqi(city: str) -> str:
+BASE_URL = "https://api.openaq.org/v3/latest"
+
+
+def get_city_air_quality(city: str) -> str:
     """
-    Получаем данные качества воздуха по городу из OpenAQ API
+    Получаем качество воздуха по городу через OpenAQ API
     """
-    url = "https://api.openaq.org/v3/latest"
-    headers = {"X-API-Key": API_KEY}   # добавляем API-ключ в заголовки
-    params = {"city": city, "limit": 1}
 
-    resp = requests.get(url, headers=headers, params=params)
+    headers = {"X-API-Key": OPENAQ_TOKEN}
 
-    if resp.status_code != 200:
-        return f"Ошибка: {resp.status_code} — {resp.text}"
+    params = {
+        "city": city
+    }
 
-    data = resp.json()
+    try:
+        resp = requests.get(BASE_URL, headers=headers, params=params, timeout=10)
 
-    if not data.get("results"):
-        return f"❌ Данных для города {city} не найдено."
+        if resp.status_code == 401:
+            return "❌ Ошибка: неверный или отсутствует API ключ."
 
-    result = data["results"][0]
-    location = result["location"]
-    measurements = result["measurements"]
+        if resp.status_code != 200:
+            return f"⚠️ Ошибка API: {resp.status_code}"
 
-    text = [f"🌍 Качество воздуха в {city} ({location}):"]
-    for m in measurements:
-        text.append(f"• {m['parameter']} = {m['value']} {m['unit']} (обновлено: {m['lastUpdated']})")
+        data = resp.json()
 
-    return "\n".join(text)
+        if "results" not in data or len(data["results"]) == 0:
+            return f"❌ Данные для города {city} не найдены."
+
+        # берем первую запись
+        measurements = data["results"][0]["measurements"]
+
+        msg = f"🌍 Город: {city}\n"
+        msg += "Последние замеры качества воздуха:\n"
+
+        for m in measurements:
+            msg += f"• {m['parameter']} = {m['value']} {m['unit']} (время: {m['lastUpdated']})\n"
+
+        return msg
+
+    except Exception as e:
+        return f"❌ Ошибка при получении данных: {e}"
