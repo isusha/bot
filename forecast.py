@@ -1,32 +1,32 @@
-import requests
 import os
+import requests
 
-OPENAQ_API_KEY = os.getenv("OPENAQ_API_KEY")  # Токен OpenAQ
+API_KEY = os.getenv("OPENAQ_API_KEY")  # ключ для OpenAQ, храним в Railway Variables
 
-def get_air_quality(city: str) -> str:
-    url = f"https://api.openaq.org/v2/latest?city={city}"
-    headers = {"X-API-Key": OPENAQ_API_KEY}
-    resp = requests.get(url, headers=headers).json()
+def get_aqi(city: str) -> str:
+    """
+    Получаем данные качества воздуха по городу из OpenAQ API
+    """
+    url = "https://api.openaq.org/v3/latest"
+    headers = {"X-API-Key": API_KEY}   # добавляем API-ключ в заголовки
+    params = {"city": city, "limit": 1}
 
-    # Если данных нет
-    if "results" not in resp or len(resp["results"]) == 0:
-        return f"❌ Данные для города '{city}' не найдены."
+    resp = requests.get(url, headers=headers, params=params)
 
-    result = resp["results"][0]
-    location = result.get("location", "Неизвестная станция")
-    country = result.get("country", "N/A")
+    if resp.status_code != 200:
+        return f"Ошибка: {resp.status_code} — {resp.text}"
 
-    measurements = result.get("measurements", [])
-    if not measurements:
-        return f"⚠️ В городе '{city}' нет доступных данных сейчас."
+    data = resp.json()
 
-    # Собираем текст
-    text = f"🌍 Город: {city} ({country})\n📍 Станция: {location}\n\n"
+    if not data.get("results"):
+        return f"❌ Данных для города {city} не найдено."
+
+    result = data["results"][0]
+    location = result["location"]
+    measurements = result["measurements"]
+
+    text = [f"🌍 Качество воздуха в {city} ({location}):"]
     for m in measurements:
-        param = m["parameter"].upper()
-        val = m["value"]
-        unit = m["unit"]
-        last_updated = m["lastUpdated"]
-        text += f"• {param}: {val} {unit} (обновлено {last_updated})\n"
+        text.append(f"• {m['parameter']} = {m['value']} {m['unit']} (обновлено: {m['lastUpdated']})")
 
-    return text
+    return "\n".join(text)
