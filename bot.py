@@ -2,8 +2,9 @@ import logging
 import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
-from forecast import get_air_quality  # правильный импорт
+from forecast import get_air_quality
 
+# токен телеграм-бота
 API_TOKEN = os.getenv("BOT_TOKEN")
 
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +30,7 @@ async def aqi_handler(message: types.Message):
         return
 
     city = parts[1]
-    result = get_air_quality(city)  # правильный вызов
+    result = get_air_quality(city)
 
     await message.reply(result)
 
