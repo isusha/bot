@@ -1,17 +1,20 @@
 import os
 import requests
+import h5py
+import numpy as np
 
-# API ключи
+# ---------------------- Настройки ----------------------
+NASA_TOKEN = os.getenv("NASA_API_KEY")
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
-NASA_API_KEY = os.getenv("NASA_API_KEY")
 
+if not NASA_TOKEN:
+    raise ValueError("NASA_API_KEY not set!")
 if not OPENWEATHER_API_KEY:
     raise ValueError("OPENWEATHER_API_KEY not set!")
-if not NASA_API_KEY:
-    raise ValueError("NASA_API_KEY not set!")
 
-# -------------------- OpenWeather functions --------------------
+# ---------------------- Функции ----------------------
 def get_coordinates(city: str):
+    """Получаем координаты города через OpenWeather Geo API"""
     url = f"https://api.openweathermap.org/geo/1.0/direct?q={city}&limit=1&appid={OPENWEATHER_API_KEY}"
     try:
         resp = requests.get(url, timeout=10)
@@ -23,78 +26,38 @@ def get_coordinates(city: str):
         print(f"Error getting coordinates: {e}")
     return None, None
 
-def calculate_aqi(pm25: float, pm10: float):
-    aqi_pm25 = int((pm25 / 12.0) * 50)
-    aqi_pm10 = int((pm10 / 50.0) * 50)
-    return max(aqi_pm25, aqi_pm10)
-
-def get_air_pollution(lat: float, lon: float):
-    url_aqi = f"https://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}"
-    url_weather = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric"
+def download_nasa_air_quality(lat: float, lon: float):
+    """
+    Скачиваем данные NASA по координатам через токен.
+    Пример: GEOS-CF/processed AQ data в формате NetCDF/HDF5.
+    """
+    url = f"https://example-nasa-data-url/{lat},{lon}/air_quality.nc"  # <-- заменить на реальный URL NASA
+    headers = {"Authorization": f"Bearer {NASA_TOKEN}"}
     try:
-        resp_aqi = requests.get(url_aqi, timeout=10)
-        resp_aqi.raise_for_status()
-        data_aqi = resp_aqi.json()
-        components = data_aqi["list"][0]["components"]
-        pm25 = components.get("pm2_5", 0)
-        pm10 = components.get("pm10", 0)
-        aqi = calculate_aqi(pm25, pm10)
-
-        resp_weather = requests.get(url_weather, timeout=10)
-        resp_weather.raise_for_status()
-        data_weather = resp_weather.json()
-        temp = data_weather["main"]["temp"]
-        wind_speed = data_weather["wind"].get("speed", 0)
-
-        return aqi, pm25, pm10, temp, wind_speed
+        response = requests.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+        with open("nasa_air_quality.nc", "wb") as f:
+            f.write(response.content)
+        return "nasa_air_quality.nc"
     except Exception as e:
-        print(f"Error getting data: {e}")
-        return None, None, None, None, None
+        print(f"Error downloading NASA data: {e}")
+        return None
 
-def analyze_conditions(aqi, temp, wind_speed):
-    advices = []
-    if temp >= 30:
-        advices.append("🌡 High temperature — air pollution may increase.")
-    elif temp <= 0:
-        advices.append("❄ Low temperature — air pollution may decrease.")
-
-    if wind_speed >= 5:
-        advices.append("💨 Strong wind — air pollution likely decreases.")
-    elif wind_speed <= 1:
-        advices.append("💨 Low wind — air pollution may increase.")
-
-    return " ".join(advices) if advices else "✅ Current conditions are stable for air quality."
-
-def aqi_message(city: str):
-    lat, lon = get_coordinates(city)
-    if lat is None:
-        return f"❌ City '{city}' not found."
-
-    aqi, pm25, pm10, temp, wind_speed = get_air_pollution(lat, lon)
-    if aqi is None:
-        return "❌ Could not retrieve AQI data."
-
-    if aqi <= 50:
-        status = "Good"
-    elif aqi <= 100:
-        status = "Moderate"
-    elif aqi <= 150:
-        status = "Unhealthy for sensitive groups"
-    elif aqi <= 200:
-        status = "Unhealthy"
-    else:
-        status = "Very unhealthy"
-
-    advice = analyze_conditions(aqi, temp, wind_speed)
-
-    return (
-        f"🌍 AQI in {city}: {aqi} ({status})\n"
-        f"PM2.5: {pm25} µg/m³, PM10: {pm10} µg/m³\n"
-        f"🌡 Temperature: {temp}°C, 💨 Wind: {wind_speed} m/s\n"
-        f"{advice}"
-    )
+def parse_nasa_air_quality(file_path):
+    """Парсер HDF5/NetCDF, возвращает AQI и PM2.5/PM10"""
+    try:
+        with h5py.File(file_path, "r") as f:
+            # Структура файла может быть разная, пример для GEOS-CF
+            aqi = f["AQI"][0]
+            pm25 = f["PM2_5"][0]
+            pm10 = f["PM10"][0]
+            return int(aqi), float(pm25), float(pm10)
+    except Exception as e:
+        print(f"Error parsing NASA data: {e}")
+        return None, None, None
 
 def estimate_health_risk(aqi, hours_outside):
+    """Оценка риска для здоровья на основе AQI и времени на улице"""
     if aqi <= 50:
         return "Safe exposure 👍"
     elif aqi <= 100:
@@ -120,23 +83,3 @@ def estimate_health_risk(aqi, hours_outside):
             return "Danger — severe risk for everyone!"
     else:
         return "Extreme danger — avoid any outdoor exposure!"
-
-# -------------------- NASA API functions --------------------
-def get_nasa_air_quality(lat: float, lon: float):
-    url = f"https://api.nasa.gov/airquality/v1/air_quality?lat={lat}&lon={lon}&api_key={NASA_API_KEY}"
-    try:
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-
-        # Пример структуры данных NASA (нужна адаптация под фактический API)
-        aqi = data.get("aqi", None)
-        pm25 = data.get("pm25", None)
-        pm10 = data.get("pm10", None)
-        temperature = data.get("temperature", None)
-        wind_speed = data.get("wind_speed", None)
-
-        return aqi, pm25, pm10, temperature, wind_speed
-    except Exception as e:
-        print(f"Error NASA API: {e}")
-        return None, None, None, None, None
