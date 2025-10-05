@@ -2,9 +2,10 @@ import logging
 import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
-from forecast import get_aqi   # импортируем функцию из forecast.py
+from forecast import get_city_air_quality
 
-API_TOKEN = os.getenv("BOT_TOKEN")  # токен бота из Railway Variables
+# токен телеграм-бота
+API_TOKEN = os.getenv("BOT_TOKEN")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -15,22 +16,23 @@ dp = Dispatcher(bot)
 @dp.message_handler(commands=["start"])
 async def start(message: types.Message):
     await message.answer(
-        "Привет! Я бот прогноза воздуха 🌍\n"
-        "Напиши /forecast <город>, чтобы узнать качество воздуха.\n"
-        "Например: /forecast London"
+        "Привет! Я бот качества воздуха 🌍\n"
+        "Напиши /aqi <город> и я покажу актуальные данные.\n"
+        "Например: /aqi London"
     )
 
 
-@dp.message_handler(commands=["forecast"])
-async def forecast_cmd(message: types.Message):
+@dp.message_handler(commands=["aqi"])
+async def aqi_handler(message: types.Message):
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.reply("Напиши так: /forecast <город>\nНапример: /forecast Алматы")
+        await message.reply("❗ Напиши так: /aqi <город>\nПример: /aqi Almaty")
         return
 
     city = parts[1]
-    text = get_aqi(city)   # вызываем функцию, которая идёт в OpenAQ
-    await message.reply(text)
+    result = get_city_air_quality(city)
+
+    await message.reply(result)
 
 
 if __name__ == "__main__":
