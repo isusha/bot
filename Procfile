@@ -1,1 +1,1 @@
-worker: python bot.py
+ker: python test_openaq.py London
