@@ -5,9 +5,7 @@ from aiogram.utils import executor
 from aiogram.dispatcher import FSMContext
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from forecast import (
-    aqi_message, get_coordinates, get_air_pollution, estimate_health_risk, get_nasa_air_quality
-)
+from forecast import get_coordinates, download_nasa_air_quality, parse_nasa_air_quality, estimate_health_risk
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 if not API_TOKEN:
@@ -18,37 +16,26 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
-# ----------------- FSM for /healthrisk -----------------
+# ----------------- FSM для /healthrisk -----------------
 class HealthRiskForm(StatesGroup):
     city = State()
     hours = State()
 
-# ----------------- Start -----------------
+# ----------------- FSM для /nasa_aqi -----------------
+class NASAForm(StatesGroup):
+    city = State()
+
+# ----------------- /start -----------------
 @dp.message_handler(commands=["start"])
 async def start(message: types.Message):
     await message.answer(
         "Hi! I am your Air Quality Bot 🌍\n"
         "Commands:\n"
-        "/aqi <city> — get air quality info (OpenWeather)\n"
-        "/nasa_aqi — get air quality info from NASA\n"
+        "/nasa_aqi — get NASA air quality data\n"
         "/healthrisk — estimate health risk based on AQI and time outdoors"
     )
 
-# ----------------- /aqi OpenWeather -----------------
-@dp.message_handler(commands=["aqi"])
-async def aqi_handler(message: types.Message):
-    parts = message.text.split(maxsplit=1)
-    if len(parts) < 2:
-        await message.reply("❗ Please write: /aqi <city>\nExample: /aqi London")
-        return
-    city = parts[1]
-    result = aqi_message(city)
-    await message.reply(result)
-
 # ----------------- /nasa_aqi -----------------
-class NASAForm(StatesGroup):
-    city = State()
-
 @dp.message_handler(commands=["nasa_aqi"])
 async def nasa_aqi_start(message: types.Message):
     await message.reply("Enter the city name to get NASA air quality data:")
@@ -61,16 +48,21 @@ async def nasa_aqi_process_city(message: types.Message, state: FSMContext):
     if lat is None:
         await message.reply(f"❌ City '{city}' not found. Please enter again:")
         return
-    aqi, pm25, pm10, temp, wind_speed = get_nasa_air_quality(lat, lon)
-    if aqi is None:
+    file_path = download_nasa_air_quality(lat, lon)
+    if file_path is None:
         await message.reply("❌ Could not retrieve NASA AQI data.")
+        await state.finish()
+        return
+
+    aqi, pm25, pm10 = parse_nasa_air_quality(file_path)
+    if aqi is None:
+        await message.reply("❌ Could not parse NASA AQI data.")
         await state.finish()
         return
 
     await message.reply(
         f"🌍 NASA Air Quality in {city}:\n"
-        f"AQI: {aqi}\nPM2.5: {pm25} µg/m³\nPM10: {pm10} µg/m³\n"
-        f"🌡 Temperature: {temp}°C\n💨 Wind Speed: {wind_speed} m/s"
+        f"AQI: {aqi}\nPM2.5: {pm25} µg/m³\nPM10: {pm10} µg/m³"
     )
     await state.finish()
 
@@ -106,7 +98,8 @@ async def process_hours(message: types.Message, state: FSMContext):
     lat = data['lat']
     lon = data['lon']
 
-    aqi, _, _, _, _ = get_air_pollution(lat, lon)
+    file_path = download_nasa_air_quality(lat, lon)
+    aqi, _, _ = parse_nasa_air_quality(file_path)
     if aqi is None:
         await message.reply("❌ Could not retrieve AQI data.")
         await state.finish()
