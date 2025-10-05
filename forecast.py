@@ -6,7 +6,7 @@ import sys
 OPENAQ_API_KEY = os.getenv("OPENAQ_API_KEY")
 
 def get_air_quality(city: str):
-    url = f"https://api.openaq.org/v2/latest?city={city}"
+    url = f"https://api.openaq.org/v3/latest?city={city}"
     headers = {
         "X-API-Key": OPENAQ_API_KEY
     }
