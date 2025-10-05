@@ -1,45 +1,51 @@
 import os
 import requests
-import sys
 
-# Берём API ключ из переменной окружения
-OPENAQ_API_KEY = os.getenv("OPENAQ_API_KEY")
+# Ключ OpenWeather, сохраняем в переменной окружения OPENWEATHER_API_KEY
+API_KEY = os.getenv("OPENWEATHER_API_KEY")
 
-def get_air_quality(city: str):
-    url = f"https://api.openaq.org/v3/latest?city={city}"
-    headers = {
-        "X-API-Key": OPENAQ_API_KEY
-    }
+if not API_KEY:
+    raise ValueError("Не задан OPENWEATHER_API_KEY!")
 
+def get_coordinates(city: str):
+    """Получаем координаты города через OpenWeather Geocoding API"""
+    url = f"https://api.openweathermap.org/geo/1.0/direct?q={city}&limit=1&appid={API_KEY}"
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            results = data.get("results", [])
-            if not results:
-                return f"Нет данных для города {city}."
-
-            # Собираем значения по всем станциям
-            text = f"🌍 Качество воздуха в {city}:\n\n"
-            for location in results:
-                loc_name = location.get("location", "Неизвестная станция")
-                measurements = location.get("measurements", [])
-                text += f"📍 {loc_name}\n"
-                for m in measurements:
-                    param = m.get("parameter", "")
-                    value = m.get("value", "")
-                    unit = m.get("unit", "")
-                    text += f"  • {param}: {value} {unit}\n"
-                text += "\n"
-            return text.strip()
-        else:
-            return f"Ошибка API: {response.status_code} — {response.text}"
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        if data:
+            lat = data[0]["lat"]
+            lon = data[0]["lon"]
+            return lat, lon
     except Exception as e:
-        return f"Ошибка при запросе: {e}"
+        print(f"Ошибка при получении координат: {e}")
+    return None, None
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Укажи город. Например: python forecast.py London")
-    else:
-        city = sys.argv[1]
-        print(get_air_quality(city))
+def get_aqi(lat: float, lon: float):
+    """Получаем AQI через OpenWeather Air Pollution API"""
+    url = f"https://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={API_KEY}"
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        # OpenWeather возвращает aqi от 1 до 5
+        aqi_index = data["list"][0]["main"]["aqi"]
+        return aqi_index
+    except Exception as e:
+        print(f"Ошибка при получении AQI: {e}")
+        return None
+
+def aqi_message(city: str):
+    """Возвращает текстовое сообщение для Telegram"""
+    lat, lon = get_coordinates(city)
+    if lat is None:
+        return f"❌ Город '{city}' не найден."
+
+    aqi_index = get_aqi(lat, lon)
+    if aqi_index is None:
+        return "❌ Не удалось получить данные AQI."
+
+    # Статусы по документации OpenWeather
+    status = ["Хороший", "Умеренный", "Вредный для чувствительных", "Вредный", "Очень вредный"]
+    return f"🌍 AQI в {city}: {aqi_index} ({status[aqi_index-1]})"
