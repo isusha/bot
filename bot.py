@@ -4,9 +4,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 from forecast import aqi_message
 
-# Токен бота в переменной окружения BOT_TOKEN
 API_TOKEN = os.getenv("BOT_TOKEN")
-
 if not API_TOKEN:
     raise ValueError("Не задан BOT_TOKEN!")
 
@@ -19,7 +17,7 @@ dp = Dispatcher(bot)
 async def start(message: types.Message):
     await message.answer(
         "Привет! Я бот качества воздуха 🌍\n"
-        "Напиши /aqi <город> и я покажу актуальные данные.\n"
+        "Напиши /aqi <город>, и я покажу актуальные данные.\n"
         "Пример: /aqi Almaty"
     )
 
