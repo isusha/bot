@@ -3,10 +3,9 @@ import requests
 
 API_KEY = os.getenv("OPENWEATHER_API_KEY")
 if not API_KEY:
-    raise ValueError("Не задан OPENWEATHER_API_KEY!")
+    raise ValueError("OPENWEATHER_API_KEY not set!")
 
 def get_coordinates(city: str):
-    """Получаем координаты города через OpenWeather Geocoding API"""
     url = f"https://api.openweathermap.org/geo/1.0/direct?q={city}&limit=1&appid={API_KEY}"
     try:
         resp = requests.get(url, timeout=10)
@@ -15,17 +14,15 @@ def get_coordinates(city: str):
         if data:
             return data[0]["lat"], data[0]["lon"]
     except Exception as e:
-        print(f"Ошибка при получении координат: {e}")
+        print(f"Error getting coordinates: {e}")
     return None, None
 
 def calculate_aqi(pm25: float, pm10: float):
-    """Считаем AQI аналогично Android"""
     aqi_pm25 = int((pm25 / 12.0) * 50)
     aqi_pm10 = int((pm10 / 50.0) * 50)
     return max(aqi_pm25, aqi_pm10)
 
 def get_air_pollution(lat: float, lon: float):
-    """Получаем AQI, PM2.5, PM10, температуру и скорость ветра"""
     url_aqi = f"https://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={API_KEY}"
     url_weather = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
 
@@ -46,50 +43,75 @@ def get_air_pollution(lat: float, lon: float):
 
         return aqi, pm25, pm10, temp, wind_speed
     except Exception as e:
-        print(f"Ошибка при получении данных: {e}")
+        print(f"Error getting data: {e}")
         return None, None, None, None, None
 
 def analyze_conditions(aqi, temp, wind_speed):
-    """Даем прогноз по изменению загрязнения воздуха"""
     advices = []
     if temp >= 30:
-        advices.append("🌡 Высокая температура — возможное увеличение загрязнения.")
+        advices.append("🌡 High temperature — air pollution may increase.")
     elif temp <= 0:
-        advices.append("❄ Низкая температура — загрязнение может уменьшаться.")
+        advices.append("❄ Low temperature — air pollution may decrease.")
 
     if wind_speed >= 5:
-        advices.append("💨 Сильный ветер — загрязнение воздуха вероятно уменьшится.")
+        advices.append("💨 Strong wind — air pollution likely decreases.")
     elif wind_speed <= 1:
-        advices.append("💨 Слабый ветер — загрязнение может увеличиться.")
+        advices.append("💨 Low wind — air pollution may increase.")
 
-    return " ".join(advices) if advices else "✅ Текущие условия стабильны для воздуха."
+    return " ".join(advices) if advices else "✅ Current conditions are stable for air quality."
 
 def aqi_message(city: str):
-    """Возвращаем текст для Telegram"""
     lat, lon = get_coordinates(city)
     if lat is None:
-        return f"❌ Город '{city}' не найден."
+        return f"❌ City '{city}' not found."
 
     aqi, pm25, pm10, temp, wind_speed = get_air_pollution(lat, lon)
     if aqi is None:
-        return "❌ Не удалось получить данные AQI."
+        return "❌ Could not retrieve AQI data."
 
     if aqi <= 50:
-        status = "Хороший"
+        status = "Good"
     elif aqi <= 100:
-        status = "Умеренный"
+        status = "Moderate"
     elif aqi <= 150:
-        status = "Вредный для чувствительных"
+        status = "Unhealthy for sensitive groups"
     elif aqi <= 200:
-        status = "Вредный"
+        status = "Unhealthy"
     else:
-        status = "Очень вредный"
+        status = "Very unhealthy"
 
     advice = analyze_conditions(aqi, temp, wind_speed)
 
     return (
-        f"🌍 AQI в {city}: {aqi} ({status})\n"
+        f"🌍 AQI in {city}: {aqi} ({status})\n"
         f"PM2.5: {pm25} µg/m³, PM10: {pm10} µg/m³\n"
-        f"🌡 Температура: {temp}°C, 💨 Ветер: {wind_speed} м/с\n"
+        f"🌡 Temperature: {temp}°C, 💨 Wind: {wind_speed} m/s\n"
         f"{advice}"
     )
+
+def estimate_health_risk(aqi, hours_outside):
+    if aqi <= 50:
+        return "Safe exposure 👍"
+    elif aqi <= 100:
+        if hours_outside <= 2:
+            return "Minor risk — short time outside is generally safe."
+        elif hours_outside <= 5:
+            return "Moderate risk — consider limiting outdoor time."
+        else:
+            return "High risk — reduce outdoor exposure!"
+    elif aqi <= 150:
+        if hours_outside <= 2:
+            return "Moderate risk — sensitive people should be careful."
+        elif hours_outside <= 5:
+            return "High risk — prolonged exposure not recommended!"
+        else:
+            return "Very high risk — avoid staying outside!"
+    elif aqi <= 200:
+        if hours_outside <= 2:
+            return "High risk — limit outdoor activities."
+        elif hours_outside <= 5:
+            return "Very high risk — avoid outdoor exposure."
+        else:
+            return "Danger — severe risk for everyone!"
+    else:
+        return "Extreme danger — avoid any outdoor exposure!"
