@@ -1,12 +1,18 @@
 import os
 import requests
 
-API_KEY = os.getenv("OPENWEATHER_API_KEY")
-if not API_KEY:
-    raise ValueError("OPENWEATHER_API_KEY not set!")
+# API ключи
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
+NASA_API_KEY = os.getenv("NASA_API_KEY")
 
+if not OPENWEATHER_API_KEY:
+    raise ValueError("OPENWEATHER_API_KEY not set!")
+if not NASA_API_KEY:
+    raise ValueError("NASA_API_KEY not set!")
+
+# -------------------- OpenWeather functions --------------------
 def get_coordinates(city: str):
-    url = f"https://api.openweathermap.org/geo/1.0/direct?q={city}&limit=1&appid={API_KEY}"
+    url = f"https://api.openweathermap.org/geo/1.0/direct?q={city}&limit=1&appid={OPENWEATHER_API_KEY}"
     try:
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
@@ -23,9 +29,8 @@ def calculate_aqi(pm25: float, pm10: float):
     return max(aqi_pm25, aqi_pm10)
 
 def get_air_pollution(lat: float, lon: float):
-    url_aqi = f"https://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={API_KEY}"
-    url_weather = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
-
+    url_aqi = f"https://api.openweathermap.org/data/2.5/air_pollution?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}"
+    url_weather = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric"
     try:
         resp_aqi = requests.get(url_aqi, timeout=10)
         resp_aqi.raise_for_status()
@@ -115,3 +120,23 @@ def estimate_health_risk(aqi, hours_outside):
             return "Danger — severe risk for everyone!"
     else:
         return "Extreme danger — avoid any outdoor exposure!"
+
+# -------------------- NASA API functions --------------------
+def get_nasa_air_quality(lat: float, lon: float):
+    url = f"https://api.nasa.gov/airquality/v1/air_quality?lat={lat}&lon={lon}&api_key={NASA_API_KEY}"
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Пример структуры данных NASA (нужна адаптация под фактический API)
+        aqi = data.get("aqi", None)
+        pm25 = data.get("pm25", None)
+        pm10 = data.get("pm10", None)
+        temperature = data.get("temperature", None)
+        wind_speed = data.get("wind_speed", None)
+
+        return aqi, pm25, pm10, temperature, wind_speed
+    except Exception as e:
+        print(f"Error NASA API: {e}")
+        return None, None, None, None, None
