@@ -1,1 +1,1 @@
-ker: python test_openaq.py London
+worker: python test_openaq.py London
