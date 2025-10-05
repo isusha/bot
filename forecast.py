@@ -1,47 +1,45 @@
 import os
 import requests
+import sys
 
-# токен OpenAQ
-OPENAQ_TOKEN = os.getenv("OPENAQ_TOKEN")
+# Берём API ключ из переменной окружения
+OPENAQ_API_KEY = os.getenv("OPENAQ_API_KEY")
 
-BASE_URL = "https://api.openaq.org/v3/latest"
-
-
-def get_city_air_quality(city: str) -> str:
-    """
-    Получаем качество воздуха по городу через OpenAQ API
-    """
-
-    headers = {"X-API-Key": OPENAQ_TOKEN}
-
-    params = {
-        "city": city
+def get_air_quality(city: str):
+    url = f"https://api.openaq.org/v2/latest?city={city}"
+    headers = {
+        "X-API-Key": OPENAQ_API_KEY
     }
 
     try:
-        resp = requests.get(BASE_URL, headers=headers, params=params, timeout=10)
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get("results", [])
+            if not results:
+                return f"Нет данных для города {city}."
 
-        if resp.status_code == 401:
-            return "❌ Ошибка: неверный или отсутствует API ключ."
-
-        if resp.status_code != 200:
-            return f"⚠️ Ошибка API: {resp.status_code}"
-
-        data = resp.json()
-
-        if "results" not in data or len(data["results"]) == 0:
-            return f"❌ Данные для города {city} не найдены."
-
-        # берем первую запись
-        measurements = data["results"][0]["measurements"]
-
-        msg = f"🌍 Город: {city}\n"
-        msg += "Последние замеры качества воздуха:\n"
-
-        for m in measurements:
-            msg += f"• {m['parameter']} = {m['value']} {m['unit']} (время: {m['lastUpdated']})\n"
-
-        return msg
-
+            # Собираем значения по всем станциям
+            text = f"🌍 Качество воздуха в {city}:\n\n"
+            for location in results:
+                loc_name = location.get("location", "Неизвестная станция")
+                measurements = location.get("measurements", [])
+                text += f"📍 {loc_name}\n"
+                for m in measurements:
+                    param = m.get("parameter", "")
+                    value = m.get("value", "")
+                    unit = m.get("unit", "")
+                    text += f"  • {param}: {value} {unit}\n"
+                text += "\n"
+            return text.strip()
+        else:
+            return f"Ошибка API: {response.status_code} — {response.text}"
     except Exception as e:
-        return f"❌ Ошибка при получении данных: {e}"
+        return f"Ошибка при запросе: {e}"
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Укажи город. Например: python forecast.py London")
+    else:
+        city = sys.argv[1]
+        print(get_air_quality(city))
