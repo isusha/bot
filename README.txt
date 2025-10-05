@@ -12,6 +12,18 @@ Features
 
 /start — Shows a welcome message and available commands.
 
+🛠️ Tech Stack
+
+- **Python 3.10+**
+
+- [Aiogram](https://docs.aiogram.dev/) — Telegram Bot framework
+
+- **OpenWeather API** — for AQI and pollution data
+
+- **NASA Earthdata** — for global datasets
+
+- **Railway** — cloud server deployment
+
 How it works
 
 Uses OpenWeather API to get real-time AQI data for cities worldwide.
